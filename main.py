@@ -1,5 +1,5 @@
 """
-Materialize MCP Server
+aterialize MCP Server
 
 A  server that exposes Materialize indexes as "tools" over the Model Context
 Protocol (MCP).  Each Materialize index that the connected role is allowed to
