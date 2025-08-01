@@ -1,26 +1,12 @@
 # Materialize MCP Server
 
-Instantly transform your Materialize indexed views into fully-typed, callable tools via the Model Context Protocol (MCP).
+Instantly turn your Materialize indexed views into live context providers for Retrieval‑Augmented Generation (RAG) pipelines and LLM-driven applications.
+By defining views and indexes, you create typed, fast, and consistent data tools. No extra services or stale caches required.
 
-Define stable, versioned, and secure data tools simply by creating SQL views and indexing them—no additional code required.
+These live, indexed views form operational data products. 
+Self-contained, discoverable services that deliver real-time context instantly.
 
-## Installation
-
-The package can be installed locally. We recommend using [uv](https://docs.astral.sh/uv/) as your build tool.
-
-```bash
-git clone https://github.com/MaterializeInc/materialize-mcp-server
-cd materialize-mcp-server
-uv run materialize-mcp-server
-```
-
-## Why not `execute_sql`?
-
-Many database MCP servers ship a single `execute_sql` tool.
-It is great for prototyping but brittle in production.
-Generated SQL queries by LLMs and agents can introduce performance bottlenecks, unpredictable costs, and inconsistent results.
-
-By shifting to **operational data products**  we remove variability and ensure that each tool is:
+## Benefits of Operational Data Products
 
 * **Stable:** define once, used repeatedly, ensuring consistent business logic.
 * **Typed:** input and output schemas are derived from the index.
@@ -32,7 +18,7 @@ By shifting to **operational data products**  we remove variability and ensure t
 Run the server with default settings:
 
 ```bash
-uv run materialize-mcp
+uv run materialize-mcp-server
 ```
 
 ## Configuration
@@ -51,9 +37,9 @@ uv run materialize-mcp
 
 ## Defining a Tool
 
-1. **Write a view** that expresses your business logic.
-2. **Index** the columns you want to query by.
-3. **Comment** the view for discoverability.
+1. **Write a view** in SQL that captures your live data logic.
+2. **Create an index** on the key columns for lightning-fast lookups.
+3. **Add a COMMENT** to describe the tool for LLM discoverability.
 
 ```sql
 CREATE VIEW order_status_summary AS
@@ -69,7 +55,8 @@ LEFT JOIN delivery_exceptions e ON c.tracking_id = e.tracking_id;
 
 CREATE INDEX ON order_status_summary (order_id);
 
-COMMENT ON order_status_summary IS 'Look up the status, shipment, and delivery info for a given order.';
+COMMENT ON VIEW order_status_summary IS 'Look up the status, shipment, and delivery info for a given order.';
+COMMENT ON COLUMN order_status_summary.order_id IS 'The unique id for an order';
 ```
 
 Refresh the server and the tool now appears in `tools/list`:
@@ -82,9 +69,106 @@ Refresh the server and the tool now appears in `tools/list`:
     "type": "object",
     "required": ["order_id"],
     "properties": {
-      "order_id": { "type": "text" }
+      "order_id": { 
+        "type": "text",
+        "description": "The unique id for an order"
+      }
     }
   }
 }
 ```
 
+## Example 1: Personalized Delivery Context
+
+Imagine you run an e-commerce site where localized inventory data shifts constantly due to in-store purchases, online orders, and warehouse replenishments.
+With Materialize, you can join live inventory updates from Kafka with real-time membership data from a Postgres database.
+Your AI-driven chat assistant, armed with this consolidated view, can instantly tell a shopper how many items remain, delivery fees (if any), and estimated arrival times specific to their location and account status.
+
+> User: How many Deluxe Espresso Machines can I get delivered to Brooklyn by tomorrow?
+> 
+> Assistant: We have 7 in stock. As a Gold member, you qualify for free expedited shipping — your machine will arrive tomorrow!
+
+```sql
+CREATE VIEW personalized_delivery_context AS
+WITH live_inventory AS (
+  SELECT p.product_id, i.warehouse, i.quantity_available
+  FROM products p
+  JOIN inventory_events i
+    ON p.product_id = i.product_id
+  WHERE i.event_time +  INTERVAL '5 minutes' >= mz_now() 
+),
+membership_info AS (
+  SELECT c.customer_id, m.tier, c.region
+  FROM customers c
+  JOIN memberships m
+    ON c.customer_id = m.customer_id
+  WHERE m.expires_at > mz_now()
+),
+shipping_rates AS (
+  SELECT region, standard_days, expedited_days, free_expedited_for_tier
+  FROM shipping_policies
+)
+SELECT
+  li.product_id,
+  SUM(li.quantity_available) AS total_available,
+  mi.tier              AS customer_tier,
+  sr.standard_days,
+  sr.expedited_days,
+  (mi.tier = sr.free_expedited_for_tier) AS free_expedited
+FROM live_inventory li
+CROSS JOIN membership_info mi
+JOIN shipping_rates sr
+  ON mi.region = sr.region
+GROUP BY li.product_id, mi.tier, sr.standard_days, sr.expedited_days, sr.free_expedited_for_tier;
+
+CREATE INDEX ON personalized_delivery_context (product_id);
+COMMENT ON personalized_delivery_context IS
+  'Combine live inventory, membership status, and shipping rules for personalized delivery quotes';
+```
+
+## Example 2: 
+
+In finance, small delays or data inconsistency can be costly.
+If an AI-based robo-advisor is using stale market data, or doesn’t know about a client’s latest trades or preferences, it may provide recommendations that no longer align with current market conditions or client priorities.
+By continuously ingesting price feeds and users market allocations, Materialize ensures the system always sees each client’s current portfolio. When prices change, market conditions shift, or clients objectives evolve, the advisor recalculates portfolio allocations within seconds, so customers can act before opportunities vanish.
+
+> User: Based on my portfolio and today’s market, any trade suggestions?
+> 
+> Assistant: Your portfolio is valued at $50k, with TechCorp up 3% and GreenCo down 6%. Consider trimming GreenCo by 10% and reallocating into TechCorp for momentum, keeping some cash for safety.”
+
+```sql
+CREATE VIEW financrag_portfolio_context AS
+WITH live_prices AS (
+  SELECT symbol, price_usd, as_of
+  FROM market_prices
+  WHERE as_of >= NOW() - INTERVAL '1 minute'
+),
+portfolio_stats AS (
+  SELECT p.client_id, p.symbol, p.shares,
+         lp.price_usd * p.shares AS position_value
+  FROM positions p
+  JOIN live_prices lp
+    ON p.symbol = lp.symbol
+),
+portfolio_agg AS (
+  SELECT
+    client_id,
+    SUM(position_value) AS total_value,
+    JSONB_AGG(
+      JSONB_BUILD_OBJECT(
+        'symbol', symbol,
+        'shares', shares,
+        'value', position_value,
+        'price', lp.price_usd
+      )
+    ) AS holdings
+  FROM portfolio_stats
+  GROUP BY client_id
+)
+SELECT client_id, total_value, holdings
+FROM portfolio_agg;
+
+CREATE INDEX ON financrag_portfolio_context (client_id);
+COMMENT ON financrag_portfolio_context IS
+  'Provide live portfolio valuation and per‑position details for RAG';
+```

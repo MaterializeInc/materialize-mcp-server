@@ -1,3 +1,18 @@
+# Copyright Materialize, Inc. and contributors. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License in the LICENSE file at the
+# root of this repository, or online at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import argparse
 import os
 from dataclasses import dataclass
@@ -18,7 +33,7 @@ def load_config() -> Config:
     parser = argparse.ArgumentParser(description="Run Materialize MCP server")
     parser.add_argument(
         "--transport",
-        choices=["stdio", "sse"],
+        choices=["stdio", "http", "sse"],
         default=os.getenv("MCP_TRANSPORT", "stdio"),
         help="Communication transport (default: stdio)",
     )
@@ -40,8 +55,8 @@ def load_config() -> Config:
     parser.add_argument(
         "--port",
         type=int,
-        default=int(os.getenv("MCP_PORT", "3001")),
-        help="Server port (default: 3001)",
+        default=os.getenv("MCP_PORT"),
+        help="Server port (default: 3001 for SSE, 8001 for HTTP)",
     )
 
     parser.add_argument(
@@ -70,7 +85,13 @@ def load_config() -> Config:
         dsn=args.mz_dsn,
         transport=args.transport,
         host=args.host,
-        port=args.port,
+        port=(
+            int(args.port)
+            if args.port is not None
+            else 3001
+            if args.transport == "sse"
+            else 8001
+        ),
         pool_min_size=args.pool_min_size,
         pool_max_size=args.pool_max_size,
         log_level=args.log_level,
