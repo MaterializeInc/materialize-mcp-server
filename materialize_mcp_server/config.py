@@ -25,6 +25,7 @@ class Config:
     enable_json_logging: bool
     service_name: str
     version: str
+    s3_bucket_name: str
     
     def validate(self) -> None:
         """Validate the configuration settings."""
@@ -86,6 +87,12 @@ class Config:
         elif not re.match(r'^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$', self.version):
             errors.append("version must follow semantic versioning (e.g., 1.0.0 or 1.0.0-beta.1)")
         
+        # Validate S3 bucket name
+        if not self.s3_bucket_name:
+            errors.append("s3_bucket_name cannot be empty")
+        elif not re.match(r'^[a-z0-9.-]{3,63}$', self.s3_bucket_name):
+            errors.append("s3_bucket_name must be a valid S3 bucket name (3-63 chars, lowercase, numbers, dots, hyphens)")
+        
         if errors:
             raise ValidationError("configuration", "; ".join(errors))
 
@@ -107,6 +114,7 @@ Environment Variables:
   MCP_ENABLE_JSON_LOG    Enable JSON structured logging (true|false)
   MCP_SERVICE_NAME       Service name for logging and metrics
   MCP_VERSION            Service version
+  S3_BUCKET_NAME         S3 bucket name for documentation vectors
 """
     )
     parser.add_argument(
@@ -176,6 +184,12 @@ Environment Variables:
         default=os.getenv("MCP_VERSION", "1.0.0"),
         help="Service version (default: 1.0.0)",
     )
+    
+    parser.add_argument(
+        "--s3-bucket-name",
+        default=os.getenv("S3_BUCKET_NAME", "materialize-docs-vectors"),
+        help="S3 bucket name for documentation vectors (default: materialize-docs-vectors)",
+    )
 
     try:
         args = parser.parse_args()
@@ -197,6 +211,7 @@ Environment Variables:
             enable_json_logging=args.enable_json_logging,
             service_name=args.service_name,
             version=args.version,
+            s3_bucket_name=args.s3_bucket_name,
         )
         
         # Validate the configuration

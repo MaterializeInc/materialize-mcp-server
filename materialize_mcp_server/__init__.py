@@ -28,6 +28,7 @@ Available Tools:
 15. ``list_materialized_views`` - Lists materialized views in Materialize, optionally filtered by schema and/or cluster
 16. ``monitor_data_freshness`` - Monitors data freshness with dependency-aware analysis, showing lagging objects and their dependency chains to identify root causes
 17. ``get_object_freshness_diagnostics`` - Get detailed freshness diagnostics for a specific object, showing its freshness and complete dependency chain
+18. ``search_documentation`` - Search Materialize documentation using semantic search
 """
 
 import asyncio
@@ -48,6 +49,7 @@ from .config import load_config, ConfigurationError
 from .logging_config import setup_structured_logging, set_correlation_id, generate_correlation_id, log_tool_call, log_tool_result
 from .observability import get_metrics_collector, HealthChecker, track_tool_call
 from .validation import ValidationError
+from .doc_search import get_searcher
 from mcp.server import Server, NotificationOptions
 from mcp.types import Tool, TextContent, ImageContent, EmbeddedResource
 from psycopg_pool import AsyncConnectionPool
@@ -149,7 +151,21 @@ async def run():
         }
     )
     
-    server = Server(cfg.service_name, lifespan=get_lifespan(cfg, metrics_collector, health_checker))
+    server = Server(
+        cfg.service_name, 
+        lifespan=get_lifespan(cfg, metrics_collector, health_checker),
+        instructions="""You are a Materialize database assistant. IMPORTANT: Always search the documentation using the search_documentation tool before generating any SQL commands or providing SQL advice, even if you think you know the answer. Materialize has specific syntax, features, and limitations that may differ from standard PostgreSQL. 
+
+Key guidelines:
+1. ALWAYS use search_documentation before suggesting SQL solutions
+2. Search for specific concepts, syntax, or features you plan to use
+3. Verify current best practices and syntax from the official documentation
+4. Include relevant documentation URLs in your responses when possible
+5. If documentation doesn't provide clear guidance, mention this limitation
+6. CRITICAL: Before generating ANY SQL involving time windows, filtering by time, or temporal operations, ALWAYS search for "mz_now" documentation first to understand Materialize's current approach to time handling
+
+The documentation search tool provides up-to-date information about Materialize's current capabilities, syntax, and recommended practices. Pay special attention to mz_now() function usage for time-based queries."""
+    )
 
     @server.list_tools()
     async def list_tools() -> List[Tool]:
@@ -201,7 +217,7 @@ async def run():
         # Add the run_sql_transaction tool
         run_sql_transaction_tool = Tool(
             name="run_sql_transaction",
-            description="Execute one or more SQL statements within a single transaction on a specified cluster.",
+            description="Execute one or more SQL statements within a single transaction on a specified cluster. IMPORTANT: Always search documentation first before using this tool to verify correct Materialize SQL syntax and best practices.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -264,7 +280,7 @@ async def run():
         # Add the create_index tool
         create_index_tool = Tool(
             name="create_index",
-            description="Create a default index on a source, view, or materialized view in a specified cluster.",
+            description="Create a default index on a source, view, or materialized view in a specified cluster. Search documentation first to understand current indexing best practices and syntax.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -304,7 +320,7 @@ async def run():
         # Add the create_view tool
         create_view_tool = Tool(
             name="create_view",
-            description="Create a view with the specified name and SQL query.",
+            description="Create a view with the specified name and SQL query. Search documentation first to verify view creation syntax and understand any Materialize-specific requirements.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -344,7 +360,7 @@ async def run():
         # Add the create_postgres_connection tool
         create_postgres_connection_tool = Tool(
             name="create_postgres_connection",
-            description="Create a PostgreSQL connection in Materialize.",
+            description="Create a PostgreSQL connection in Materialize. Search documentation first to understand current connection parameters and authentication methods.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -384,7 +400,7 @@ async def run():
         # Add the create_postgres_source tool
         create_postgres_source_tool = Tool(
             name="create_postgres_source",
-            description="Create a PostgreSQL source in Materialize using an existing connection and publication.",
+            description="Create a PostgreSQL source in Materialize using an existing connection and publication. Search documentation first to understand source creation requirements and options.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -430,7 +446,7 @@ async def run():
         # Add the create_materialized_view tool
         create_materialized_view_tool = Tool(
             name="create_materialized_view",
-            description="Create a materialized view with the specified name, cluster, and SQL query.",
+            description="Create a materialized view with the specified name, cluster, and SQL query. Search documentation first to understand materialized view syntax, performance considerations, and cluster requirements.",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -515,6 +531,30 @@ async def run():
             }
         )
         tools.append(get_object_freshness_diagnostics_tool)
+        # Add the search_documentation tool
+        search_documentation_tool = Tool(
+            name="search_documentation",
+            description="Search Materialize documentation using semantic search to find relevant information and answers. Always search the documentation before writing SQL as details of how Materialize works may have changed.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": "The search query or question to find relevant documentation"
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "description": "Maximum number of results to return (default: 5)"
+                    },
+                    "section_filter": {
+                        "type": "string",
+                        "description": "Optional section filter to limit search to specific documentation sections"
+                    }
+                },
+                "required": ["query"]
+            }
+        )
+        tools.append(search_documentation_tool)
         return tools
 
     @server.call_tool()
@@ -741,6 +781,26 @@ async def run():
                 return [TextContent(text=result_text, type="text")]
             except Exception as e:
                 logger.error(f"Error executing get_object_freshness_diagnostics: {str(e)}")
+                raise
+        if name == "search_documentation":
+            try:
+                query = arguments.get("query")
+                limit = arguments.get("limit", 5)
+                section_filter = arguments.get("section_filter")
+                
+                if not query:
+                    raise ValueError("query is required")
+                
+                import os
+                bucket_name = os.getenv("S3_BUCKET_NAME", "materialize-docs-vectors")
+                searcher = await get_searcher(bucket_name)
+                results = await searcher.search(query, limit, section_filter)
+                
+                result_text = json.dumps(results, default=json_serial, indent=2)
+                logger.debug(f"search_documentation executed successfully, found {len(results)} results")
+                return [TextContent(text=result_text, type="text")]
+            except Exception as e:
+                logger.error(f"Error executing search_documentation: {str(e)}")
                 raise
         # If not a static tool, raise error
         logger.error(f"Tool not found: {name}")
