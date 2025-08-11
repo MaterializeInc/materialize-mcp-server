@@ -47,7 +47,7 @@ from .config import load_config, ConfigurationError
 from .logging_config import setup_structured_logging, set_correlation_id, generate_correlation_id, log_tool_call, log_tool_result
 from .observability import get_metrics_collector, HealthChecker, track_tool_call
 from .validation import ValidationError
-from .doc_search import get_searcher
+from materialize_mcp_server.search.doc_search import get_searcher
 from mcp.server import Server, NotificationOptions
 from mcp.types import Tool, TextContent, ImageContent, EmbeddedResource
 from psycopg_pool import AsyncConnectionPool

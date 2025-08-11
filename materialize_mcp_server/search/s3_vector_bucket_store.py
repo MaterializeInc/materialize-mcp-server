@@ -18,67 +18,46 @@ class S3VectorBucketStore:
     """S3 Vector Buckets-based vector store for documentation embeddings."""
     
     def __init__(
-        self, 
+        self,
         bucket_name: str = "materialize-docs-vectors",
         region: str = "us-east-1",
         index_name: str = "docs-index",
-        embedding_model: str = "all-MiniLM-L6-v2"
+        embedding_model: str = "all-MiniLM-L6-v2",
     ):
         """
-        Initialize S3 Vector Bucket store.
-        
+        Initialize S3 Vector Bucket store (synchronously).
+
         Args:
             bucket_name: Name of the S3 vector bucket
             region: AWS region (must support S3 Vectors preview)
             index_name: Name of the vector index within the bucket
             embedding_model: Local embedding model name
         """
+        logger.info("Initializing S3 Vector Bucket store...")
+
         self.bucket_name = bucket_name
         self.region = region
         self.index_name = index_name
         self.embedding_model = embedding_model
-        
-        self.s3vectors_client = None
-        self.local_model = None
-        self.executor = None
-        
-        # Vector dimensions (will be set during initialization)
-        self.vector_dimensions = None
-        
-    async def initialize(self):
-        """Initialize the S3 Vector Bucket store."""
-        logger.info("Initializing S3 Vector Bucket store...")
-        
-        # Validate region support
-        supported_regions = ["us-east-1", "us-east-2", "us-west-2", "ap-southeast-2", "eu-central-1"]
-        if self.region not in supported_regions:
-            logger.warning(f"Region {self.region} may not support S3 Vectors preview. Supported: {supported_regions}")
-        
-        # Create executor for running sync operations
-        self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
-        
-        # Initialize S3 Vectors client (synchronous)
-        def create_client():
-            return boto3.client('s3vectors', region_name=self.region)
-        
-        self.s3vectors_client = await asyncio.get_event_loop().run_in_executor(
-            self.executor, create_client
+
+        # These will be set below
+        self.s3vectors_client: Optional[object] = None
+        self.local_model: Optional[SentenceTransformer] = None
+        self.vector_dimensions: Optional[int] = None
+
+        # Initialize S3 Vectors client
+        self.s3vectors_client = boto3.client("s3vectors", region_name=self.region)
+
+        self.local_model = SentenceTransformer(self.embedding_model)
+        test_embedding = self.local_model.encode("test")
+        self.vector_dimensions = len(test_embedding)
+        logger.info(
+            "Using local model '%s' with %d dimensions",
+            self.embedding_model,
+            self.vector_dimensions,
         )
-        
-        # Initialize local embedding model
-        def load_model():
-            model = SentenceTransformer(self.embedding_model)
-            test_embedding = model.encode("test")
-            return model, len(test_embedding)
-        
-        self.local_model, self.vector_dimensions = await asyncio.get_event_loop().run_in_executor(
-            self.executor, load_model
-        )
-        logger.info(f"Using local model '{self.embedding_model}' with {self.vector_dimensions} dimensions")
-        
-        # Ensure vector bucket and index exist
-        await self._ensure_bucket_and_index()
-        
+
+        self._ensure_bucket_and_index()
         logger.info("S3 Vector Bucket store initialized")
     
     async def _get_embedding(self, text: str) -> List[float]:
@@ -90,49 +69,42 @@ class S3VectorBucketStore:
         return await asyncio.get_event_loop().run_in_executor(
             self.executor, encode_text
         )
-    
-    async def _ensure_bucket_and_index(self):
-        """Ensure the vector bucket and index exist."""
-        def ensure_bucket_and_index_sync():
+
+    def _ensure_bucket_and_index(self):
+        try:
             try:
-                # Check if bucket exists
-                try:
-                    self.s3vectors_client.get_vector_bucket(vectorBucketName=self.bucket_name)
-                    logger.info(f"Vector bucket '{self.bucket_name}' already exists")
-                except Exception:
-                    # Create vector bucket
-                    logger.info(f"Creating vector bucket '{self.bucket_name}'...")
-                    self.s3vectors_client.create_vector_bucket(
-                        vectorBucketName=self.bucket_name
-                    )
-                    logger.info(f"Created vector bucket '{self.bucket_name}'")
-                
-                # Check if index exists
-                try:
-                    self.s3vectors_client.get_index(
-                        vectorBucketName=self.bucket_name,
-                        indexName=self.index_name
-                    )
-                    logger.info(f"Vector index '{self.index_name}' already exists")
-                except Exception:
-                    # Create vector index
-                    logger.info(f"Creating vector index '{self.index_name}'...")
-                    self.s3vectors_client.create_index(
-                        vectorBucketName=self.bucket_name,
-                        indexName=self.index_name,
-                        dataType="float32",
-                        dimension=self.vector_dimensions,
-                        distanceMetric="cosine"  # Use cosine similarity like the original implementation
-                    )
-                    logger.info(f"Created vector index '{self.index_name}'")
-                    
-            except Exception as e:
-                logger.error(f"Error ensuring bucket and index: {e}")
-                raise
-        
-        await asyncio.get_event_loop().run_in_executor(
-            self.executor, ensure_bucket_and_index_sync
-        )
+                self.s3vectors_client.get_vector_bucket(vectorBucketName=self.bucket_name)
+                logger.info(f"Vector bucket '{self.bucket_name}' already exists")
+            except Exception:
+                # Create vector bucket
+                logger.info(f"Creating vector bucket '{self.bucket_name}'...")
+                self.s3vectors_client.create_vector_bucket(
+                    vectorBucketName=self.bucket_name
+                )
+                logger.info(f"Created vector bucket '{self.bucket_name}'")
+
+            # Check if index exists
+            try:
+                self.s3vectors_client.get_index(
+                    vectorBucketName=self.bucket_name,
+                    indexName=self.index_name
+                )
+                logger.info(f"Vector index '{self.index_name}' already exists")
+            except Exception:
+                # Create vector index
+                logger.info(f"Creating vector index '{self.index_name}'...")
+                self.s3vectors_client.create_index(
+                    vectorBucketName=self.bucket_name,
+                    indexName=self.index_name,
+                    dataType="float32",
+                    dimension=self.vector_dimensions,
+                    distanceMetric="cosine"  # Use cosine similarity like the original implementation
+                )
+                logger.info(f"Created vector index '{self.index_name}'")
+
+        except Exception as e:
+            logger.error(f"Error ensuring bucket and index: {e}")
+            raise
     
     async def add_document(self, doc_data: Dict[str, Any]):
         """Add a document and its embedding to the store."""

@@ -12,8 +12,8 @@ import os
 # Add the parent directory to the path so we can import our modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from materialize_mcp_server.doc_search import DocumentationSearcher
-from materialize_mcp_server.s3_vector_bucket_store import S3VectorBucketStore
+from materialize_mcp_server.search.doc_search import DocumentationSearcher
+from materialize_mcp_server.search.s3_vector_bucket_store import S3VectorBucketStore
 
 
 async def main():
@@ -62,8 +62,7 @@ async def main():
             bucket_name=bucket_name,
             region=region
         )
-        await store.initialize()
-        
+
         # Get current document count
         count = await store.get_document_count()
         print(f"Current document count in S3 Vector Bucket: {count}")

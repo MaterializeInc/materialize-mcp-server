@@ -10,7 +10,7 @@ from urllib.parse import urljoin, urlparse
 import aiohttp
 from bs4 import BeautifulSoup
 
-from .s3_vector_bucket_store import get_s3_vector_bucket_store
+from materialize_mcp_server.search.s3_vector_bucket_store import get_s3_vector_bucket_store
 
 
 logger = logging.getLogger(__name__)
