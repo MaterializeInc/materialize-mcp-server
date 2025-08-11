@@ -33,9 +33,7 @@ Available Tools:
 
 import asyncio
 import json
-import logging
 import sys
-import time
 from contextlib import asynccontextmanager
 from typing import Any, Dict, List, Sequence, AsyncIterator
 
@@ -53,7 +51,7 @@ from .doc_search import get_searcher
 from mcp.server import Server, NotificationOptions
 from mcp.types import Tool, TextContent, ImageContent, EmbeddedResource
 from psycopg_pool import AsyncConnectionPool
-
+from .system_prompt import INSTRUCTIONS
 
 # Global logger - will be configured properly in main()
 logger = None
@@ -154,18 +152,7 @@ async def run():
     server = Server(
         cfg.service_name, 
         lifespan=get_lifespan(cfg, metrics_collector, health_checker),
-        instructions="""You are a Materialize database assistant. IMPORTANT: Always search the documentation using the search_documentation tool before generating any SQL commands or providing SQL advice, even if you think you know the answer. Materialize has specific syntax, features, and limitations that may differ from standard PostgreSQL. 
-
-Key guidelines:
-1. ALWAYS use search_documentation before suggesting SQL solutions
-2. Search for specific concepts, syntax, or features you plan to use
-3. Verify current best practices and syntax from the official documentation
-4. Include relevant documentation URLs in your responses when possible
-5. If documentation doesn't provide clear guidance, mention this limitation
-6. CRITICAL: Before generating ANY SQL involving time windows, filtering by time, or temporal operations, ALWAYS search for "mz_now" documentation first to understand Materialize's current approach to time handling
-
-The documentation search tool provides up-to-date information about Materialize's current capabilities, syntax, and recommended practices. Pay special attention to mz_now() function usage for time-based queries."""
-    )
+        instructions=INSTRUCTIONS)
 
     @server.list_tools()
     async def list_tools() -> List[Tool]:
