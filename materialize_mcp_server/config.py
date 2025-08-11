@@ -44,11 +44,11 @@ class Config:
             errors.append(f"Invalid DSN format: {e}")
         
         # Validate transport
-        if self.transport not in ["stdio", "sse"]:
-            errors.append("Transport must be either 'stdio' or 'sse'")
+        if self.transport not in ["stdio", "http"]:
+            errors.append("Transport must be either 'stdio' or 'http'")
         
-        # Validate host (for SSE transport)
-        if self.transport == "sse":
+        # Validate host (for http transport)
+        if self.transport == "http":
             # Basic IP/hostname validation
             if not re.match(r'^[a-zA-Z0-9.-]+$', self.host):
                 errors.append("Host contains invalid characters")
@@ -104,10 +104,10 @@ def load_config() -> Config:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Environment Variables:
-  MCP_TRANSPORT          Communication transport (stdio|sse)
+  MCP_TRANSPORT          Communication transport (stdio|http)
   MZ_DSN                 Materialize database connection string
-  MCP_HOST               Server host for SSE transport
-  MCP_PORT               Server port for SSE transport
+  MCP_HOST               Server host for http transport
+  MCP_PORT               Server port for http transport
   MCP_POOL_MIN_SIZE      Minimum database connection pool size
   MCP_POOL_MAX_SIZE      Maximum database connection pool size
   MCP_LOG_LEVEL          Logging level (DEBUG|INFO|WARNING|ERROR|CRITICAL)
@@ -119,7 +119,7 @@ Environment Variables:
     )
     parser.add_argument(
         "--transport",
-        choices=["stdio", "sse"],
+        choices=["stdio", "http"],
         default=os.getenv("MCP_TRANSPORT", "stdio"),
         help="Communication transport (default: stdio)",
     )
@@ -141,8 +141,8 @@ Environment Variables:
     parser.add_argument(
         "--port",
         type=int,
-        default=_safe_int(os.getenv("MCP_PORT", "3001")),
-        help="Server port for SSE transport (default: 3001)",
+        default=_safe_int(os.getenv("MCP_PORT", "8000")),
+        help="Server port for HTTP transport (default: 8000)",
     )
 
     parser.add_argument(

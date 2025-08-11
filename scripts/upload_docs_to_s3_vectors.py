@@ -86,8 +86,7 @@ async def main():
         
         # We'll create a temporary searcher just for scraping
         temp_searcher = DocumentationSearcher()
-        await temp_searcher.initialize()
-        
+
         # Get the scraped documents without storing them in the old format
         print("Scraping documentation pages...")
         documents = []
