@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__mz-dev__search_documentation",
+      "mcp__mz-dev__run_sql_transaction",
+      "WebFetch(domain:materialize.com)",
+      "mcp__mz-dev__execute_ddl",
+      "Bash(find:*)",
+      "Bash(git checkout:*)",
+      "Bash(mkdir:*)"
+    ],
+    "deny": []
+  }
+}

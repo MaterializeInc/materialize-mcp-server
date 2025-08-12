@@ -10,6 +10,7 @@ from .validation import InputValidator, ValidationError
 
 class ConfigurationError(Exception):
     """Raised when configuration is invalid or cannot be loaded."""
+
     pass
 
 
@@ -25,11 +26,12 @@ class Config:
     enable_json_logging: bool
     service_name: str
     version: str
-    
+    s3_bucket_name: str
+
     def validate(self) -> None:
         """Validate the configuration settings."""
         errors = []
-        
+
         # Validate DSN
         try:
             parsed_dsn = urlparse(self.dsn)
@@ -41,51 +43,67 @@ class Config:
                 errors.append("DSN port must be between 1 and 65535")
         except Exception as e:
             errors.append(f"Invalid DSN format: {e}")
-        
+
         # Validate transport
-        if self.transport not in ["stdio", "sse"]:
-            errors.append("Transport must be either 'stdio' or 'sse'")
-        
-        # Validate host (for SSE transport)
-        if self.transport == "sse":
+        if self.transport not in ["stdio", "http"]:
+            errors.append("Transport must be either 'stdio' or 'http'")
+
+        # Validate host (for http transport)
+        if self.transport == "http":
             # Basic IP/hostname validation
-            if not re.match(r'^[a-zA-Z0-9.-]+$', self.host):
+            if not re.match(r"^[a-zA-Z0-9.-]+$", self.host):
                 errors.append("Host contains invalid characters")
-        
+
         # Validate port
         port_result = InputValidator.validate_port(self.port)
         if not port_result.is_valid:
             errors.extend([error.message for error in port_result.errors])
-        
+
         # Validate pool sizes
-        min_result = InputValidator.validate_pool_size(self.pool_min_size, "pool_min_size")
+        min_result = InputValidator.validate_pool_size(
+            self.pool_min_size, "pool_min_size"
+        )
         if not min_result.is_valid:
             errors.extend([error.message for error in min_result.errors])
-            
-        max_result = InputValidator.validate_pool_size(self.pool_max_size, "pool_max_size")
+
+        max_result = InputValidator.validate_pool_size(
+            self.pool_max_size, "pool_max_size"
+        )
         if not max_result.is_valid:
             errors.extend([error.message for error in max_result.errors])
-        
+
         if self.pool_min_size > self.pool_max_size:
             errors.append("pool_min_size cannot be greater than pool_max_size")
-        
+
         # Validate log level
         valid_log_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if self.log_level.upper() not in valid_log_levels:
             errors.append(f"log_level must be one of: {', '.join(valid_log_levels)}")
-        
+
         # Validate service name
         if not self.service_name:
             errors.append("service_name cannot be empty")
-        elif not re.match(r'^[a-zA-Z0-9_-]+$', self.service_name):
-            errors.append("service_name can only contain letters, numbers, underscores, and hyphens")
-        
+        elif not re.match(r"^[a-zA-Z0-9_-]+$", self.service_name):
+            errors.append(
+                "service_name can only contain letters, numbers, underscores, and hyphens"
+            )
+
         # Validate version
         if not self.version:
             errors.append("version cannot be empty")
-        elif not re.match(r'^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$', self.version):
-            errors.append("version must follow semantic versioning (e.g., 1.0.0 or 1.0.0-beta.1)")
-        
+        elif not re.match(r"^\d+\.\d+\.\d+(-[a-zA-Z0-9.-]+)?$", self.version):
+            errors.append(
+                "version must follow semantic versioning (e.g., 1.0.0 or 1.0.0-beta.1)"
+            )
+
+        # Validate S3 bucket name
+        if not self.s3_bucket_name:
+            errors.append("s3_bucket_name cannot be empty")
+        elif not re.match(r"^[a-z0-9.-]{3,63}$", self.s3_bucket_name):
+            errors.append(
+                "s3_bucket_name must be a valid S3 bucket name (3-63 chars, lowercase, numbers, dots, hyphens)"
+            )
+
         if errors:
             raise ValidationError("configuration", "; ".join(errors))
 
@@ -97,21 +115,22 @@ def load_config() -> Config:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Environment Variables:
-  MCP_TRANSPORT          Communication transport (stdio|sse)
+  MCP_TRANSPORT          Communication transport (stdio|http)
   MZ_DSN                 Materialize database connection string
-  MCP_HOST               Server host for SSE transport
-  MCP_PORT               Server port for SSE transport
+  MCP_HOST               Server host for http transport
+  MCP_PORT               Server port for http transport
   MCP_POOL_MIN_SIZE      Minimum database connection pool size
   MCP_POOL_MAX_SIZE      Maximum database connection pool size
   MCP_LOG_LEVEL          Logging level (DEBUG|INFO|WARNING|ERROR|CRITICAL)
   MCP_ENABLE_JSON_LOG    Enable JSON structured logging (true|false)
   MCP_SERVICE_NAME       Service name for logging and metrics
   MCP_VERSION            Service version
-"""
+  S3_BUCKET_NAME         S3 bucket name for documentation vectors
+""",
     )
     parser.add_argument(
         "--transport",
-        choices=["stdio", "sse"],
+        choices=["stdio", "http"],
         default=os.getenv("MCP_TRANSPORT", "stdio"),
         help="Communication transport (default: stdio)",
     )
@@ -133,8 +152,8 @@ Environment Variables:
     parser.add_argument(
         "--port",
         type=int,
-        default=_safe_int(os.getenv("MCP_PORT", "3001")),
-        help="Server port for SSE transport (default: 3001)",
+        default=_safe_int(os.getenv("MCP_PORT", "8000")),
+        help="Server port for HTTP transport (default: 8000)",
     )
 
     parser.add_argument(
@@ -164,17 +183,23 @@ Environment Variables:
         default=_safe_bool(os.getenv("MCP_ENABLE_JSON_LOG", "true")),
         help="Enable JSON structured logging (default: true)",
     )
-    
+
     parser.add_argument(
         "--service-name",
         default=os.getenv("MCP_SERVICE_NAME", "materialize_mcp_server"),
         help="Service name for logging and metrics (default: materialize_mcp_server)",
     )
-    
+
     parser.add_argument(
         "--version",
         default=os.getenv("MCP_VERSION", "1.0.0"),
         help="Service version (default: 1.0.0)",
+    )
+
+    parser.add_argument(
+        "--s3-bucket-name",
+        default=os.getenv("S3_BUCKET_NAME", "materialize-docs-vectors"),
+        help="S3 bucket name for documentation vectors (default: materialize-docs-vectors)",
     )
 
     try:
@@ -182,9 +207,11 @@ Environment Variables:
     except SystemExit as e:
         # Provide better error handling for argument parsing
         if e.code != 0:
-            raise ValidationError("arguments", "Invalid command line arguments provided")
+            raise ValidationError(
+                "arguments", "Invalid command line arguments provided"
+            )
         raise
-    
+
     try:
         config = Config(
             dsn=args.mz_dsn,
@@ -197,12 +224,13 @@ Environment Variables:
             enable_json_logging=args.enable_json_logging,
             service_name=args.service_name,
             version=args.version,
+            s3_bucket_name=args.s3_bucket_name,
         )
-        
+
         # Validate the configuration
         config.validate()
         return config
-        
+
     except ValidationError:
         raise
     except Exception as e:
@@ -222,5 +250,5 @@ def _safe_bool(value: str, default: bool = False) -> bool:
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
-        return value.lower() in ('true', '1', 'yes', 'on', 'enabled')
+        return value.lower() in ("true", "1", "yes", "on", "enabled")
     return default
