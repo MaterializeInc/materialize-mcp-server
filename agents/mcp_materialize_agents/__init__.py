@@ -30,10 +30,10 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel, Field
 
-from developers.mcp_materialize_developers.system_prompt import INSTRUCTIONS
+from .system_prompt import INSTRUCTIONS
 from .config import Config, load_config
 
-logger = logging.getLogger("mz_mcp_server")
+logger = logging.getLogger("mcp_materialize_agents")
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -89,7 +89,7 @@ async def create_client(cfg: Config) -> AsyncIterator[AsyncConnectionPool]:
         raise
 
 
-TOOL_QUERY = (files("mcp_materialize.sql") / "tools.sql").read_text()
+TOOL_QUERY = (files("mcp_materialize_agents.sql") / "tools.sql").read_text()
 
 
 class DataProduct(BaseModel):
