@@ -1,15 +1,15 @@
 from mcp.server import FastMCP
 from psycopg_pool import AsyncConnectionPool
 
-from materialize_mcp_server.config import Config
-from materialize_mcp_server.system_prompt import INSTRUCTIONS
-from materialize_mcp_server.tools.execute_ddl import ExecuteDDL
-from materialize_mcp_server.tools.monitor_data_freshness import MonitorDataFreshness
-from materialize_mcp_server.tools.object_freshness_diagnostics import (
+from .config import Config
+from .system_prompt import INSTRUCTIONS
+from .tools.execute_ddl import ExecuteDDL
+from .tools.monitor_data_freshness import MonitorDataFreshness
+from .tools.object_freshness_diagnostics import (
     ObjectFreshnessDiagnostics,
 )
-from materialize_mcp_server.tools.run_sql_transaction import RunSqlTransaction
-from materialize_mcp_server.tools.search_documentation import SearchDocumentation
+from .tools.run_sql_transaction import RunSqlTransaction
+from .tools.search_documentation import SearchDocumentation
 
 
 class MaterializeDevMcpServer:
@@ -36,10 +36,14 @@ class MaterializeDevMcpServer:
         )
         await self._pool.__aenter__()
 
-        self._server.add_tool(ExecuteDDL(self._pool))
-        self._server.add_tool(RunSqlTransaction(self._pool))
-        self._server.add_tool(MonitorDataFreshness(self._pool))
-        self._server.add_tool(ObjectFreshnessDiagnostics(self._pool))
+        if self._cfg.mode == "READ_WRITE":
+            self._server.add_tool(ExecuteDDL(self._pool))
+
+        if self._cfg.mode in ["READ_ONLY", "READ_WRITE"]:
+            self._server.add_tool(RunSqlTransaction(self._pool))
+            self._server.add_tool(MonitorDataFreshness(self._pool))
+            self._server.add_tool(ObjectFreshnessDiagnostics(self._pool))
+
         self._server.add_tool(SearchDocumentation())
         return self
 

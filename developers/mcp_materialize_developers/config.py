@@ -2,7 +2,6 @@ import argparse
 import os
 import re
 from dataclasses import dataclass
-from typing import Optional
 from urllib.parse import urlparse
 
 from .validation import InputValidator, ValidationError
@@ -27,6 +26,7 @@ class Config:
     service_name: str
     version: str
     s3_bucket_name: str
+    mode: str
 
     def validate(self) -> None:
         """Validate the configuration settings."""
@@ -104,6 +104,11 @@ class Config:
                 "s3_bucket_name must be a valid S3 bucket name (3-63 chars, lowercase, numbers, dots, hyphens)"
             )
 
+        # Validate mode
+        valid_modes = ["READ_WRITE", "READ_ONLY", "DOCS_ONLY"]
+        if self.mode.upper() not in valid_modes:
+            errors.append(f"mode must be one of: {', '.join(valid_modes)}")
+
         if errors:
             raise ValidationError("configuration", "; ".join(errors))
 
@@ -126,6 +131,7 @@ Environment Variables:
   MCP_SERVICE_NAME       Service name for logging and metrics
   MCP_VERSION            Service version
   S3_BUCKET_NAME         S3 bucket name for documentation vectors
+  MCP_MODE               Server mode (READ_WRITE|READ_ONLY|DOCS_ONLY)
 """,
     )
     parser.add_argument(
@@ -202,6 +208,13 @@ Environment Variables:
         help="S3 bucket name for documentation vectors (default: materialize-docs-vectors)",
     )
 
+    parser.add_argument(
+        "--mode",
+        choices=["READ_WRITE", "READ_ONLY", "DOCS_ONLY"],
+        default=os.getenv("MCP_MODE", "READ_WRITE").upper(),
+        help="Server mode: READ_WRITE allows introspecting and modifying Materialize database, READ_ONLY allows introspecting only, DOCS_ONLY provides documentation without database connection (default: READ_WRITE)",
+    )
+
     try:
         args = parser.parse_args()
     except SystemExit as e:
@@ -225,6 +238,7 @@ Environment Variables:
             service_name=args.service_name,
             version=args.version,
             s3_bucket_name=args.s3_bucket_name,
+            mode=args.mode.upper(),
         )
 
         # Validate the configuration

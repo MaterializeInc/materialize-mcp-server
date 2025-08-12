@@ -11,7 +11,7 @@ import logging
 import sys
 from typing import Optional
 
-from materialize_mcp_server.mcp_server import MaterializeDevMcpServer
+from .mcp_server import MaterializeDevMcpServer
 from .config import load_config, ConfigurationError
 from .logging_config import setup_structured_logging
 

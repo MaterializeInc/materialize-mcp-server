@@ -1,7 +1,7 @@
 import json
 from typing import Optional
 
-from materialize_mcp_server.search.doc_search import DocumentationSearcher
+from ..search.doc_search import DocumentationSearcher
 
 
 class SearchDocumentation:
