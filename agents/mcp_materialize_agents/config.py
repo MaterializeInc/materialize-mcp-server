@@ -85,11 +85,7 @@ def load_config() -> Config:
         dsn=args.mz_dsn,
         transport=args.transport,
         host=args.host,
-        port=(
-            int(args.port)
-            if args.port is not None
-            else 8000
-        ),
+        port=(int(args.port) if args.port is not None else 8000),
         pool_min_size=args.pool_min_size,
         pool_max_size=args.pool_max_size,
         log_level=args.log_level,

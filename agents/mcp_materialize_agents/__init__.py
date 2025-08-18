@@ -122,7 +122,9 @@ class FullDataProduct(BaseModel):
 async def run():
     cfg = load_config()
     async with create_client(cfg) as mz:
-        server = FastMCP("mcp_materialize", instructions=INSTRUCTIONS, host=cfg.host, port=cfg.port)
+        server = FastMCP(
+            "mcp_materialize", instructions=INSTRUCTIONS, host=cfg.host, port=cfg.port
+        )
 
         @server.tool(
             description="Discover all available real-time data views (data products) that represent business entities like customers, orders, products, etc. Each data product provides fresh, queryable data with defined schemas. Use this first to see what data is available before querying specific information.",
