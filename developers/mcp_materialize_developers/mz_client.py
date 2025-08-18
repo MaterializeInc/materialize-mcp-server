@@ -1,16 +1,13 @@
 import base64
 import decimal
-from typing import List, Dict, Any, Sequence
+from typing import List, Dict, Any
 from uuid import UUID
 
-from mcp import Tool
-from mcp.types import TextContent, ImageContent, EmbeddedResource
 from psycopg import sql
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
-import json
 
-from .validation import validate_and_sanitize_args, ValidationError
+from .validation import validate_and_sanitize_args
 
 
 OBJECTS_QUERY = sql.SQL(

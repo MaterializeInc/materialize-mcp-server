@@ -8,8 +8,8 @@ import time
 import psutil
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Deque
+from datetime import datetime
+from typing import Dict, Optional, Any, Deque
 from contextlib import asynccontextmanager
 import logging
 
@@ -77,7 +77,6 @@ class SystemMetrics:
     def collect(cls) -> "SystemMetrics":
         """Collect current system metrics."""
         import sys
-        import platform
 
         memory = psutil.virtual_memory()
         disk = psutil.disk_usage("/")

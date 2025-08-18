@@ -3,7 +3,7 @@ Input validation and security utilities for the Materialize MCP server.
 """
 
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from dataclasses import dataclass
 
 

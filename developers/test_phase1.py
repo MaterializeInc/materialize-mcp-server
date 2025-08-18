@@ -3,10 +3,8 @@
 Simple test script to verify Phase 1 enterprise improvements are working.
 """
 
-import json
 import subprocess
 import sys
-from pathlib import Path
 
 
 def test_config_validation():
@@ -80,7 +78,7 @@ def test_input_validation():
     """Test input validation functions."""
     print("Testing input validation...")
 
-    from materialize_mcp_server.validation import InputValidator, ValidationError
+    from materialize_mcp_server.validation import InputValidator
 
     # Test valid cluster name
     result = InputValidator.validate_identifier("my_cluster", "cluster_name")

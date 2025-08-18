@@ -30,8 +30,8 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 from pydantic import BaseModel, Field
 
-from .system_prompt import INSTRUCTIONS
 from .config import Config, load_config
+from .system_prompt import INSTRUCTIONS
 
 logger = logging.getLogger("mcp_materialize_agents")
 logging.basicConfig(
@@ -184,7 +184,7 @@ async def run():
                 conn.set_autocommit(True)
                 async with conn.cursor(row_factory=dict_row) as cur:
                     cur.execute("START TRANSACTION READ ONLY;")
-                    await cur.execute("SET cluster TO {};".format(cluster))
+                    await cur.execute(f"SET cluster TO {cluster};")
                     await cur.execute(sql_query)
 
                     rows = await cur.fetchall()
