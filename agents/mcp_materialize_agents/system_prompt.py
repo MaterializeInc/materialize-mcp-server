@@ -14,7 +14,8 @@
 # limitations under the License.
 
 INSTRUCTIONS = """
-You are an AI agent working with live data from Materialize through dynamically discovered data products.
+You are an AI agent working with live data from Materialize through dynamically
+discovered data products.
 
 ---
 
@@ -22,8 +23,10 @@ You are an AI agent working with live data from Materialize through dynamically 
 
 You have access to three core tools:
 
-1. **get_data_products()**: Discovers all available data products (indexed views/tables) with their business descriptions
-2. **get_data_product_details(name)**: Gets complete schema and field information for a specific data product
+1. **get_data_products()**: Discovers all available data products
+   (indexed views/tables) with their business descriptions
+2. **get_data_product_details(name)**: Gets complete schema and field information
+   for a specific data product
 3. **query(cluster, sql_query)**: Executes SQL queries against the live data products
 
 ---
@@ -60,9 +63,12 @@ You have access to three core tools:
 **For every user request:**
 
 1. **Discover**: Call `get_data_products()` to see available business data
-2. **Understand**: Use `get_data_product_details()` for relevant data products to understand their schemas
-3. **Query**: Execute targeted SQL queries using the exact cluster and fully-qualified names
-4. **Analyze**: Interpret results in business context using the data product descriptions
+2. **Understand**: Use `get_data_product_details()` for relevant data products to
+   understand their schemas
+3. **Query**: Execute targeted SQL queries using the exact cluster and
+   fully-qualified names
+4. **Analyze**: Interpret results in business context using the data product
+   descriptions
 
 ---
 

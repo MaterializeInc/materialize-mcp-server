@@ -94,28 +94,54 @@ TOOL_QUERY = (files("mcp_materialize_agents.sql") / "tools.sql").read_text()
 
 class DataProduct(BaseModel):
     name: str = Field(
-        description='Fully qualified name of the data product with double quotes (e.g. \'"database"."schema"."view_name"\'). Use this exact name when querying - it\'s ready for SQL.'
+        description=(
+            'Fully qualified name of the data product with double quotes '
+            '(e.g. \'"database"."schema"."view_name"\'). '
+            'Use this exact name when querying - it\'s ready for SQL.'
+        )
     )
     cluster: str = Field(
-        description="Materialize compute cluster that hosts this data product. Required when executing queries - always use this exact cluster name."
+        description=(
+            "Materialize compute cluster that hosts this data product. "
+            "Required when executing queries - always use this exact "
+            "cluster name."
+        )
     )
     description: str = Field(
-        description="Human-readable explanation of what business data this product contains and when to use it (e.g. 'Customer order history with shipping status for support queries')."
+        description=(
+            "Human-readable explanation of what business data this product "
+            "contains and when to use it (e.g. 'Customer order history with "
+            "shipping status for support queries')."
+        )
     )
 
 
 class FullDataProduct(BaseModel):
     name: str = Field(
-        description='Fully qualified name with double quotes (e.g. \'"database"."schema"."view_name"\'). Use this exact name in queries.'
+        description=(
+            'Fully qualified name with double quotes '
+            '(e.g. \'"database"."schema"."view_name"\'). '
+            'Use this exact name in queries.'
+        )
     )
     cluster: str = Field(
-        description="Materialize compute cluster hosting this data. Always specify this cluster when querying this data product."
+        description=(
+            "Materialize compute cluster hosting this data. "
+            "Always specify this cluster when querying this data product."
+        )
     )
     description: str = Field(
-        description="Detailed explanation of the business purpose and use cases for this data product."
+        description=(
+            "Detailed explanation of the business purpose and use cases "
+            "for this data product."
+        )
     )
     schema: dict[str, Any] = Field(
-        description="Complete JSON schema showing all available fields, their data types, and descriptions. Use this to understand what data you can SELECT and what WHERE conditions you can use."
+        description=(
+            "Complete JSON schema showing all available fields, their data "
+            "types, and descriptions. Use this to understand what data you "
+            "can SELECT and what WHERE conditions you can use."
+        )
     )
 
 
@@ -127,7 +153,13 @@ async def run():
         )
 
         @server.tool(
-            description="Discover all available real-time data views (data products) that represent business entities like customers, orders, products, etc. Each data product provides fresh, queryable data with defined schemas. Use this first to see what data is available before querying specific information.",
+            description=(
+                "Discover all available real-time data views (data products) "
+                "that represent business entities like customers, orders, "
+                "products, etc. Each data product provides fresh, queryable "
+                "data with defined schemas. Use this first to see what data "
+                "is available before querying specific information."
+            ),
             annotations=ToolAnnotations(readOnlyHint=True),
         )
         async def get_data_products() -> list[DataProduct]:
@@ -147,12 +179,21 @@ async def run():
                     return data_products
 
         @server.tool(
-            description="Get the complete schema and structure of a specific data product. This shows you exactly what fields are available, their types, and what data you can query. Use this after finding a data product from get_data_products() to understand how to query it.",
+            description=(
+                "Get the complete schema and structure of a specific data "
+                "product. This shows you exactly what fields are available, "
+                "their types, and what data you can query. Use this after "
+                "finding a data product from get_data_products() to "
+                "understand how to query it."
+            ),
             annotations=ToolAnnotations(readOnlyHint=True),
         )
         async def get_data_product_details(
             name: str = Field(
-                description="Exact name of the data product from get_data_products() list"
+                description=(
+                    "Exact name of the data product from "
+                    "get_data_products() list"
+                )
             ),
         ) -> FullDataProduct:
             async with mz.connection() as conn:
@@ -169,15 +210,31 @@ async def run():
                 raise ValueError("Unknown data product name")
 
         @server.tool(
-            description="Execute SQL queries against real-time data products to retrieve current business information. Use standard PostgreSQL syntax. You can JOIN multiple data products together, but ONLY if they are all hosted on the same cluster. Always specify the cluster parameter from the data product details. This provides fresh, up-to-date results from materialized views.",
+            description=(
+                "Execute SQL queries against real-time data products to "
+                "retrieve current business information. Use standard "
+                "PostgreSQL syntax. You can JOIN multiple data products "
+                "together, but ONLY if they are all hosted on the same "
+                "cluster. Always specify the cluster parameter from the "
+                "data product details. This provides fresh, up-to-date "
+                "results from materialized views."
+            ),
             annotations=ToolAnnotations(readOnlyHint=True),
         )
         async def query(
             cluster: str = Field(
-                description="Exact cluster name from the data product details - required for query execution"
+                description=(
+                    "Exact cluster name from the data product details - "
+                    "required for query execution"
+                )
             ),
             sql_query: str = Field(
-                description="PostgreSQL-compatible SELECT statement to retrieve data. Use the fully qualified data product name exactly as provided (with double quotes). You can JOIN multiple data products, but only those on the same cluster."
+                description=(
+                    "PostgreSQL-compatible SELECT statement to retrieve data. "
+                    "Use the fully qualified data product name exactly as "
+                    "provided (with double quotes). You can JOIN multiple data "
+                    "products, but only those on the same cluster."
+                )
             ),
         ):
             async with mz.connection() as conn:
