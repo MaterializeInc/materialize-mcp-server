@@ -285,7 +285,7 @@ def log_tool_result(
 
     if success:
         logger.info(
-            f"Tool call completed: {tool_name} ({duration*1000:.2f}ms)",
+            f"Tool call completed: {tool_name} ({duration * 1000:.2f}ms)",
             extra=extra_data,
         )
     else:
@@ -294,7 +294,7 @@ def log_tool_result(
             extra_data["error_message"] = str(error)
 
         logger.error(
-            f"Tool call failed: {tool_name} ({duration*1000:.2f}ms)",
+            f"Tool call failed: {tool_name} ({duration * 1000:.2f}ms)",
             extra=extra_data,
             exc_info=error,
         )

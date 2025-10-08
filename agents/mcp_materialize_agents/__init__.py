@@ -95,9 +95,9 @@ TOOL_QUERY = (files("mcp_materialize_agents.sql") / "tools.sql").read_text()
 class DataProduct(BaseModel):
     name: str = Field(
         description=(
-            'Fully qualified name of the data product with double quotes '
+            "Fully qualified name of the data product with double quotes "
             '(e.g. \'"database"."schema"."view_name"\'). '
-            'Use this exact name when querying - it\'s ready for SQL.'
+            "Use this exact name when querying - it's ready for SQL."
         )
     )
     cluster: str = Field(
@@ -119,9 +119,9 @@ class DataProduct(BaseModel):
 class FullDataProduct(BaseModel):
     name: str = Field(
         description=(
-            'Fully qualified name with double quotes '
+            "Fully qualified name with double quotes "
             '(e.g. \'"database"."schema"."view_name"\'). '
-            'Use this exact name in queries.'
+            "Use this exact name in queries."
         )
     )
     cluster: str = Field(
@@ -191,8 +191,7 @@ async def run():
         async def get_data_product_details(
             name: str = Field(
                 description=(
-                    "Exact name of the data product from "
-                    "get_data_products() list"
+                    "Exact name of the data product from get_data_products() list"
                 )
             ),
         ) -> FullDataProduct:

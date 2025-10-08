@@ -5,11 +5,13 @@ Uses AWS S3 Vector Buckets native vector storage with local embeddings.
 
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, TYPE_CHECKING
 import concurrent.futures
 
 import boto3
-from sentence_transformers import SentenceTransformer
+
+if TYPE_CHECKING:
+    from sentence_transformers import SentenceTransformer
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +35,7 @@ class S3VectorBucketStore:
             index_name: Name of the vector index within the bucket
             embedding_model: Local embedding model name
         """
-        logger.info("Initializing S3 Vector Bucket store...")
+        logger.debug("Initializing S3 Vector Bucket store...")
 
         self.bucket_name = bucket_name
         self.region = region
@@ -46,23 +48,42 @@ class S3VectorBucketStore:
         self.vector_dimensions: Optional[int] = None
 
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
-        # Initialize S3 Vectors client
-        self.s3vectors_client = boto3.client("s3vectors", region_name=self.region)
 
-        self.local_model = SentenceTransformer(self.embedding_model)
-        test_embedding = self.local_model.encode("test")
-        self.vector_dimensions = len(test_embedding)
-        logger.info(
-            "Using local model '%s' with %d dimensions",
-            self.embedding_model,
-            self.vector_dimensions,
+        # Defer initialization until first use to avoid startup delays
+        self.s3vectors_client = None
+        self.local_model = None
+        self.vector_dimensions = None
+
+        logger.debug(
+            "S3 Vector Bucket store initialized (will initialize on first use)"
         )
 
-        self._ensure_bucket_and_index()
-        logger.info("S3 Vector Bucket store initialized")
+    def _ensure_initialized(self):
+        """Lazily initialize S3 client and embedding model on first use."""
+        if self.s3vectors_client is None:
+            logger.info("Initializing S3 Vectors client...")
+            self.s3vectors_client = boto3.client("s3vectors", region_name=self.region)
+            logger.info("S3 Vectors client initialized")
+
+        if self.local_model is None:
+            # Import sentence_transformers only when needed (slow import ~2s)
+            from sentence_transformers import SentenceTransformer
+
+            logger.info(f"Loading embedding model '{self.embedding_model}'...")
+            self.local_model = SentenceTransformer(self.embedding_model)
+            test_embedding = self.local_model.encode("test")
+            self.vector_dimensions = len(test_embedding)
+            logger.info(
+                "Loaded model '%s' with %d dimensions",
+                self.embedding_model,
+                self.vector_dimensions,
+            )
+            # Ensure bucket and index exist now that we know the dimensions
+            self._ensure_bucket_and_index()
 
     async def _get_embedding(self, text: str) -> List[float]:
         """Get embedding using local model."""
+        self._ensure_initialized()
 
         def encode_text():
             embedding = self.local_model.encode(text)
@@ -192,7 +213,7 @@ class S3VectorBucketStore:
             )
 
             logger.info(
-                f"Uploaded batch {i//batch_size + 1}/{(len(documents) + batch_size - 1)//batch_size}"
+                f"Uploaded batch {i // batch_size + 1}/{(len(documents) + batch_size - 1) // batch_size}"
             )
 
         logger.info("Bulk document addition completed")
