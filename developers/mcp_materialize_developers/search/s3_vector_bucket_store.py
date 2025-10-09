@@ -4,9 +4,9 @@ Uses AWS S3 Vector Buckets native vector storage with local embeddings.
 """
 
 import asyncio
-import logging
-from typing import List, Dict, Any, Optional, TYPE_CHECKING
 import concurrent.futures
+import logging
+from typing import TYPE_CHECKING, Any
 
 import boto3
 
@@ -43,9 +43,9 @@ class S3VectorBucketStore:
         self.embedding_model = embedding_model
 
         # These will be set below
-        self.s3vectors_client: Optional[object] = None
-        self.local_model: Optional[SentenceTransformer] = None
-        self.vector_dimensions: Optional[int] = None
+        self.s3vectors_client: object | None = None
+        self.local_model: SentenceTransformer | None = None
+        self.vector_dimensions: int | None = None
 
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 
@@ -81,7 +81,7 @@ class S3VectorBucketStore:
             # Ensure bucket and index exist now that we know the dimensions
             self._ensure_bucket_and_index()
 
-    async def _get_embedding(self, text: str) -> List[float]:
+    async def _get_embedding(self, text: str) -> list[float]:
         """Get embedding using local model."""
         self._ensure_initialized()
 
@@ -130,7 +130,7 @@ class S3VectorBucketStore:
             logger.error(f"Error ensuring bucket and index: {e}")
             raise
 
-    async def add_document(self, doc_data: Dict[str, Any]):
+    async def add_document(self, doc_data: dict[str, Any]):
         """Add a document and its embedding to the store."""
         # Generate embedding for the document content
         embedding = await self._get_embedding(doc_data["content"])
@@ -166,7 +166,7 @@ class S3VectorBucketStore:
         logger.debug(f"Added document to vector index: {doc_data['title']}")
 
     async def bulk_add_documents(
-        self, documents: List[Dict[str, Any]], batch_size: int = 100
+        self, documents: list[dict[str, Any]], batch_size: int = 100
     ):
         """Add multiple documents in batches for efficiency."""
         logger.info(f"Adding {len(documents)} documents to S3 Vector Bucket store...")
@@ -219,8 +219,8 @@ class S3VectorBucketStore:
         logger.info("Bulk document addition completed")
 
     async def search(
-        self, query: str, limit: int = 5, section_filter: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, query: str, limit: int = 5, section_filter: str | None = None
+    ) -> list[dict[str, Any]]:
         """Search for similar documents using S3 Vectors native search."""
         # Generate query embedding
         query_embedding = await self._get_embedding(query)
@@ -295,7 +295,7 @@ class S3VectorBucketStore:
             logger.error(f"Error getting document count: {e}")
             return 0
 
-    async def get_bucket_info(self) -> Dict[str, Any]:
+    async def get_bucket_info(self) -> dict[str, Any]:
         """Get information about the S3 vector bucket and index."""
         try:
 
@@ -304,14 +304,14 @@ class S3VectorBucketStore:
                     bucket_response = self.s3vectors_client.get_vector_bucket(
                         vectorBucketName=self.bucket_name
                     )
-                except:
+                except Exception:
                     bucket_response = None
 
                 try:
                     index_response = self.s3vectors_client.get_index(
                         vectorBucketName=self.bucket_name, indexName=self.index_name
                     )
-                except:
+                except Exception:
                     index_response = None
 
                 return bucket_response, index_response

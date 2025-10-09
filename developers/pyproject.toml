@@ -56,3 +56,6 @@ dev = [
     "hatch>=1.9.4",
     "ruff>=0.14.0",
 ]
+
+[tool.ruff]
+lint.select = ["I", "UP", "F", "E"]

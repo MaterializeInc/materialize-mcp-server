@@ -63,10 +63,11 @@ def test_validation_imports():
     print("Testing module imports...")
 
     try:
-        from materialize_mcp_server.validation import InputValidator, ValidationError
-        from materialize_mcp_server.logging_config import setup_structured_logging
-        from materialize_mcp_server.observability import MetricsCollector
-        from materialize_mcp_server.config import ConfigurationError
+        # Test that Phase 1 modules can be imported
+        __import__("materialize_mcp_server.validation")
+        __import__("materialize_mcp_server.logging_config")
+        __import__("materialize_mcp_server.observability")
+        __import__("materialize_mcp_server.config")
 
         print("✅ All Phase 1 modules import successfully")
     except ImportError as e:
@@ -102,8 +103,8 @@ def test_logging_config():
     print("Testing logging configuration...")
 
     from materialize_mcp_server.logging_config import (
-        setup_structured_logging,
         generate_correlation_id,
+        setup_structured_logging,
     )
 
     # Test logger setup

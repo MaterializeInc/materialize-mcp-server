@@ -1,6 +1,6 @@
 import base64
 import decimal
-from typing import List, Dict, Any
+from typing import Any
 from uuid import UUID
 
 from psycopg import sql
@@ -8,7 +8,6 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from .validation import validate_and_sanitize_args
-
 
 OBJECTS_QUERY = sql.SQL(
     """
@@ -45,14 +44,14 @@ class MzClient:
     def __init__(self, pool: AsyncConnectionPool) -> None:
         self.pool = pool
 
-    async def list_objects(self) -> List[Dict[str, Any]]:
+    async def list_objects(self) -> list[dict[str, Any]]:
         """
         Return the catalog of all queryable objects.
 
         This includes sources, tables, views, materialized views, and indexes.
         """
         pool = self.pool
-        objects: List[Dict[str, Any]] = []
+        objects: list[dict[str, Any]] = []
         async with pool.connection() as conn:
             await conn.set_autocommit(True)
             async with conn.cursor(row_factory=dict_row) as cur:
@@ -61,12 +60,12 @@ class MzClient:
                     objects.append(row)
         return objects
 
-    async def list_clusters(self) -> List[Dict[str, Any]]:
+    async def list_clusters(self) -> list[dict[str, Any]]:
         """
         Return the list of clusters in Materialize.
         """
         pool = self.pool
-        clusters: List[Dict[str, Any]] = []
+        clusters: list[dict[str, Any]] = []
         async with pool.connection() as conn:
             await conn.set_autocommit(True)
             async with conn.cursor(row_factory=dict_row) as cur:
@@ -75,7 +74,7 @@ class MzClient:
                     clusters.append(row)
         return clusters
 
-    async def create_cluster(self, cluster_name: str, size: str) -> Dict[str, Any]:
+    async def create_cluster(self, cluster_name: str, size: str) -> dict[str, Any]:
         """
         Create a new cluster in Materialize with the specified name and size.
 
@@ -87,7 +86,7 @@ class MzClient:
             Dictionary with the result of the cluster creation
         """
         # Validate and sanitize inputs
-        args = validate_and_sanitize_args(
+        validate_and_sanitize_args(
             "create_cluster", {"cluster_name": cluster_name, "size": size}
         )
 
@@ -111,8 +110,8 @@ class MzClient:
                 }
 
     async def run_sql_transaction(
-        self, cluster_name: str, sql_statements: List[str], isolation_level: str = None
-    ) -> Dict[str, Any]:
+        self, cluster_name: str, sql_statements: list[str], isolation_level: str = None
+    ) -> dict[str, Any]:
         """
         Execute one or more SQL statements within a single transaction.
 
@@ -125,7 +124,7 @@ class MzClient:
             Dictionary with the results of the transaction execution
         """
         # Validate and sanitize inputs
-        args = validate_and_sanitize_args(
+        validate_and_sanitize_args(
             "run_sql_transaction",
             {
                 "cluster_name": cluster_name,
@@ -255,7 +254,7 @@ class MzClient:
                     schemas.append(row)
         return schemas
 
-    async def create_index(self, cluster_name: str, object_name: str) -> Dict[str, Any]:
+    async def create_index(self, cluster_name: str, object_name: str) -> dict[str, Any]:
         """
         Create a default index on a source, view, or materialized view.
 
@@ -286,7 +285,7 @@ class MzClient:
 
     async def drop_index(
         self, index_name: str, cascade: bool = False
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Drop an index from Materialize.
 
@@ -320,7 +319,7 @@ class MzClient:
                     "cascade": cascade,
                 }
 
-    async def create_view(self, view_name: str, sql_query: str) -> Dict[str, Any]:
+    async def create_view(self, view_name: str, sql_query: str) -> dict[str, Any]:
         """
         Create a view with the specified name and SQL query.
 
@@ -353,7 +352,7 @@ class MzClient:
 
     async def create_materialized_view(
         self, view_name: str, cluster_name: str, sql_query: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Create a materialized view with the specified name, cluster, and SQL query.
 
@@ -424,7 +423,7 @@ class MzClient:
         port: int = 5432,
         username: str = "materialize",
         ssl_mode: str = "require",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Create a PostgreSQL connection in Materialize.
 
@@ -489,9 +488,9 @@ class MzClient:
         connection_name: str,
         publication_name: str,
         for_all_tables: bool = True,
-        for_schemas: List[str] = None,
-        for_tables: List[str] = None,
-    ) -> Dict[str, Any]:
+        for_schemas: list[str] = None,
+        for_tables: list[str] = None,
+    ) -> dict[str, Any]:
         """
         Create a PostgreSQL source in Materialize.
 
@@ -962,7 +961,7 @@ class MzClient:
 
 def json_serial(obj):
     """JSON serializer for objects not serializable by default json code"""
-    from datetime import datetime, date, time, timedelta
+    from datetime import date, datetime, time, timedelta
 
     if isinstance(obj, (datetime, date, time)):
         return obj.isoformat()
