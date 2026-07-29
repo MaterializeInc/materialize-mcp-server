@@ -53,7 +53,8 @@ packages = ["mcp_materialize_agents"]
 dev = [
     "pytest-asyncio>=0.26.0",
     "pytest>=8.3.5",
-    "hatch>=1.9.4"
+    "hatch>=1.9.4",
+    "ruff>=0.14.0",
 ]
 
 [tool.ruff]

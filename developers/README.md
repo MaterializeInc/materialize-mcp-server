@@ -6,45 +6,317 @@ The server exposes a comprehensive set of static tools for database operations i
 
 ## Installation
 
+### Quick Start Checklist
+
+✅ **Before you begin:**
+1. Install Python 3.13+ and `uv`
+2. Configure AWS credentials: `aws configure --profile your-profile-name`
+3. (Optional) Start Materialize: `docker run -p 6875:6875 materialize/materialized:latest`
+
+✅ **Installation steps:**
+1. Clone repo and install: `cd materialize-mcp-server/developers && uv sync`
+2. Configure your IDE:
+   - **Claude Code**: `claude mcp add -e AWS_PROFILE=your-profile ... materialize-local ...`
+   - **Cursor**: Create `.cursor/mcp.json` (see "Using with Cursor" section)
+3. Restart your IDE
+4. Verify: Ask your AI assistant "Check the Materialize connection status"
+
 ### Using with Claude Code
 
 Claude Code automatically starts and manages MCP servers for you. You don't need to run the server manually - just configure it and Claude Code will handle the rest.
 
+#### Prerequisites
+
+Before setting up the MCP server, ensure you have:
+
+1. **Python 3.13+** and **uv** installed
+2. **AWS credentials configured** (required for documentation search):
+   ```bash
+   # Check if you have AWS credentials
+   aws sts get-caller-identity
+
+   # If not, configure your AWS profile
+   aws configure --profile your-profile-name
+   ```
+
+   The server uses AWS S3 Vector Buckets for semantic documentation search. Without AWS credentials, the documentation search tool won't work (but all database tools will still function).
+
+3. **Materialize instance** (optional - server works without it):
+   - Local: `docker run -p 6875:6875 materialize/materialized:latest`
+   - Or Materialize Cloud: Get your connection string from the console
+
 #### Quick Setup
 
-1. Clone the repository:
+**Step 1: Install dependencies**
+
 ```bash
 git clone https://github.com/MaterializeInc/materialize-mcp-server
-cd materialize-mcp-server
+cd materialize-mcp-server/developers
+uv sync
 ```
 
-2. Add the server configuration using Claude Code's CLI:
+⚠️ **Important:** You must run `uv sync` before configuring Claude Code. This pre-installs all dependencies (including large ML packages for documentation search) to ensure fast startup times (~0.5 seconds instead of 2+ seconds).
+
+**Step 2: Configure Claude Code**
+
+Using Claude Code CLI (recommended for fastest startup ~0.5s):
+
 ```bash
-# For local Materialize instance
-claude mcp add materialize-local --command "uv" --args "run" "--project" "." "materialize-mcp-server"
+# For local Materialize with AWS credentials
+claude mcp add \
+  -e MCP_LOG_LEVEL=ERROR \
+  -e MCP_ENABLE_JSON_LOG=false \
+  -e AWS_PROFILE=your-aws-profile \
+  materialize-local \
+  "$(pwd)/.venv/bin/python" -m mcp_materialize_developers
 
 # For Materialize Cloud
-claude mcp add materialize-cloud --command "uv" --args "run" "--project" "." "materialize-mcp-server" --env MZ_DSN="your-materialize-cloud-dsn"
+claude mcp add \
+  -e MCP_LOG_LEVEL=ERROR \
+  -e MCP_ENABLE_JSON_LOG=false \
+  -e AWS_PROFILE=your-aws-profile \
+  -e MZ_DSN="postgresql://user@host.materialize.cloud:6875/materialize?sslmode=require" \
+  materialize-cloud \
+  "$(pwd)/.venv/bin/python" -m mcp_materialize_developers
 ```
+
+**Step 3: Restart Claude Code**
+
+After configuration, fully restart Claude Code to load the MCP server.
+
+**Step 4: Verify it works**
+
+Ask Claude: "Check the Materialize connection status" - it should use the `check_connection` tool and report the connection state.
 
 #### Manual Configuration
 
-Alternatively, create a `.mcp.json` file in your project root:
+Alternatively, create a `.mcp.json` file in your project root or edit `~/.claude.json`:
+
+**Option 1: Using venv directly (fastest - recommended)**
+
+```json
+{
+  "mcpServers": {
+    "materialize-local": {
+      "command": "/Users/yourname/path/to/materialize-mcp-server/developers/.venv/bin/python",
+      "args": ["-m", "mcp_materialize_developers"],
+      "env": {
+        "MCP_LOG_LEVEL": "ERROR",
+        "MCP_ENABLE_JSON_LOG": "false",
+        "AWS_PROFILE": "your-aws-profile",
+        "MZ_DSN": "postgresql://materialize@localhost:6875/materialize"
+      }
+    }
+  }
+}
+```
+
+**Option 2: Using `uv run` (slightly slower but simpler paths)**
 
 ```json
 {
   "mcpServers": {
     "materialize-local": {
       "command": "uv",
-      "args": ["run", "--project", "/path/to/materialize-mcp-server", "materialize-mcp-server"],
+      "args": ["run", "--project", "/Users/yourname/path/to/materialize-mcp-server/developers", "mcp_materialize_developers"],
       "env": {
+        "MCP_LOG_LEVEL": "ERROR",
+        "MCP_ENABLE_JSON_LOG": "false",
+        "AWS_PROFILE": "your-aws-profile",
         "MZ_DSN": "postgresql://materialize@localhost:6875/materialize"
       }
-    },
-    "materialize-cloud": {
-      "command": "uv",
-      "args": ["run", "--project", "/path/to/materialize-mcp-server", "materialize-mcp-server"],
+    }
+  }
+}
+```
+
+**Required environment variables:**
+- `MCP_LOG_LEVEL=ERROR` - Reduces log noise for Claude Code
+- `MCP_ENABLE_JSON_LOG=false` - Prevents JSON logs from interfering with MCP protocol
+- `AWS_PROFILE=your-aws-profile` - AWS credentials for documentation search (use your actual profile name)
+
+**Optional environment variables:**
+- `MZ_DSN` - Materialize connection string (defaults to local instance if not specified)
+- `MCP_MODE` - Server mode: `READ_WRITE` (default), `READ_ONLY`, or `DOCS_ONLY`
+
+#### All Configuration Options
+
+**Required for Claude Code:**
+- `MCP_LOG_LEVEL=ERROR` - Reduces log noise (prevents interference with MCP protocol)
+- `MCP_ENABLE_JSON_LOG=false` - Disables JSON logging format
+- `AWS_PROFILE` - Your AWS profile name for documentation search (e.g., `default`, `mz-scratch-admin`)
+
+**Materialize Connection (optional - server works without it):**
+- `MZ_DSN`: Full connection string (e.g., `postgresql://materialize@localhost:6875/materialize`)
+- `PGHOST`: Materialize host (default: localhost)
+- `PGPORT`: Materialize port (default: 6875)
+- `PGUSER`: Database user (default: materialize)
+- `PGPASSWORD`: Database password (if required)
+- `PGDATABASE`: Database name (default: materialize)
+
+**Documentation Search (requires AWS credentials):**
+- `AWS_PROFILE`: AWS profile name (required for documentation search)
+- `AWS_REGION`: AWS region for S3 (default: us-east-1)
+- `S3_BUCKET_NAME`: S3 bucket for document vectors (default: materialize-docs-vectors)
+
+**Advanced Options:**
+- `MCP_MODE`: Server mode - `READ_WRITE`, `READ_ONLY`, or `DOCS_ONLY` (default: READ_WRITE)
+  - `READ_WRITE`: Full database access + documentation search
+  - `READ_ONLY`: Read-only database access + documentation search
+  - `DOCS_ONLY`: Documentation search only (no database connection needed)
+- `MCP_TRANSPORT`: Communication transport - always use `stdio` for Claude Code (default: stdio)
+- `MCP_POOL_MIN_SIZE`: Minimum database connection pool size (default: 1)
+- `MCP_POOL_MAX_SIZE`: Maximum database connection pool size (default: 10)
+
+#### How Documentation Search Works
+
+The MCP server provides semantic search over Materialize documentation using:
+
+1. **ML-powered embeddings** - Uses `sentence-transformers` to create vector embeddings of documentation
+2. **AWS S3 Vector Buckets** - Stores embeddings in S3 for fast semantic search
+3. **Automatic indexing** - On first search, automatically scrapes and indexes https://materialize.com/docs/
+
+**First-time setup (automatic):**
+- When you first use documentation search, the server will:
+  - Load the ML model (~2-3 seconds one-time cost)
+  - Create the S3 bucket `materialize-docs-vectors` if it doesn't exist
+  - Scrape and index Materialize documentation
+  - Store embeddings in S3 for future use
+
+**Subsequent searches:**
+- Fast semantic search over indexed documentation
+- Returns relevant docs with URLs and excerpts
+- Works even if Materialize database is unavailable
+
+**Usage example:**
+```
+You: "How do I create a materialized view?"
+Claude: [Uses search_documentation tool]
+[Returns relevant documentation with URLs]
+```
+
+### Using with Cursor
+
+Cursor IDE supports MCP servers through configuration files. Like Claude Code, Cursor automatically starts and manages MCP servers - you just configure them and Cursor handles the rest.
+
+#### Prerequisites
+
+Same as Claude Code above:
+
+1. **Python 3.13+** and **uv** installed
+2. **AWS credentials configured** (required for documentation search)
+3. **Materialize instance** (optional - server works without it)
+
+#### Quick Setup
+
+**Step 1: Install dependencies**
+
+```bash
+git clone https://github.com/MaterializeInc/materialize-mcp-server
+cd materialize-mcp-server/developers
+uv sync
+```
+
+⚠️ **Important:** You must run `uv sync` before configuring Cursor. This pre-installs all dependencies to ensure fast startup times (~0.5 seconds).
+
+**Step 2: Configure Cursor**
+
+Cursor supports two configuration options:
+
+**Option A: Project-specific (recommended)**
+
+Create `.cursor/mcp.json` in your project root:
+
+```bash
+mkdir -p .cursor
+```
+
+Then create `.cursor/mcp.json` with this content:
+
+```json
+{
+  "mcpServers": {
+    "materialize-local": {
+      "command": "/absolute/path/to/materialize-mcp-server/developers/.venv/bin/python",
+      "args": ["-m", "mcp_materialize_developers"],
       "env": {
+        "MCP_LOG_LEVEL": "ERROR",
+        "MCP_ENABLE_JSON_LOG": "false",
+        "AWS_PROFILE": "your-aws-profile",
+        "MZ_DSN": "postgresql://materialize@localhost:6875/materialize"
+      }
+    }
+  }
+}
+```
+
+**Option B: Global configuration**
+
+Create `~/.cursor/mcp.json` in your home directory for tools available across all projects (same format as above).
+
+**Step 3: Restart Cursor**
+
+After creating the configuration file, fully restart Cursor to load the MCP server.
+
+**Step 4: Verify it works**
+
+1. Open Cursor's AI chat (Cmd+L or Ctrl+L)
+2. Ask: "Check the Materialize connection status"
+3. Cursor should use the `check_connection` tool and report the connection state
+4. You can also ask: "What MCP tools are available?" to see all the Materialize tools
+
+#### Configuration Details
+
+**Using venv directly (fastest - recommended)**
+
+```json
+{
+  "mcpServers": {
+    "materialize-local": {
+      "command": "/Users/yourname/path/to/materialize-mcp-server/developers/.venv/bin/python",
+      "args": ["-m", "mcp_materialize_developers"],
+      "env": {
+        "MCP_LOG_LEVEL": "ERROR",
+        "MCP_ENABLE_JSON_LOG": "false",
+        "AWS_PROFILE": "your-aws-profile",
+        "MZ_DSN": "postgresql://materialize@localhost:6875/materialize"
+      }
+    }
+  }
+}
+```
+
+**Using `uv run` (slightly slower but simpler paths)**
+
+```json
+{
+  "mcpServers": {
+    "materialize-local": {
+      "command": "uv",
+      "args": ["run", "--project", "/Users/yourname/path/to/materialize-mcp-server/developers", "mcp_materialize_developers"],
+      "env": {
+        "MCP_LOG_LEVEL": "ERROR",
+        "MCP_ENABLE_JSON_LOG": "false",
+        "AWS_PROFILE": "your-aws-profile",
+        "MZ_DSN": "postgresql://materialize@localhost:6875/materialize"
+      }
+    }
+  }
+}
+```
+
+**For Materialize Cloud:**
+
+```json
+{
+  "mcpServers": {
+    "materialize-cloud": {
+      "command": "/Users/yourname/path/to/materialize-mcp-server/developers/.venv/bin/python",
+      "args": ["-m", "mcp_materialize_developers"],
+      "env": {
+        "MCP_LOG_LEVEL": "ERROR",
+        "MCP_ENABLE_JSON_LOG": "false",
+        "AWS_PROFILE": "your-aws-profile",
         "MZ_DSN": "postgresql://user@host.materialize.cloud:6875/materialize?sslmode=require"
       }
     }
@@ -52,17 +324,89 @@ Alternatively, create a `.mcp.json` file in your project root:
 }
 ```
 
-#### Configuration Options
+**Required environment variables:**
+- `MCP_LOG_LEVEL=ERROR` - Reduces log noise for Cursor
+- `MCP_ENABLE_JSON_LOG=false` - Prevents JSON logs from interfering with MCP protocol
+- `AWS_PROFILE=your-aws-profile` - AWS credentials for documentation search
 
-You can pass any of these environment variables in the `env` section:
+**Optional environment variables:**
+- `MZ_DSN` - Materialize connection string (defaults to local instance if not specified)
+- `MCP_MODE` - Server mode: `READ_WRITE` (default), `READ_ONLY`, or `DOCS_ONLY`
 
-- `MZ_DSN`: Full Materialize connection string (overrides individual connection parameters)
-- `PGHOST`: Materialize host (default: localhost)
-- `PGPORT`: Materialize port (default: 6875)
-- `PGUSER`: Database user (default: materialize)
-- `PGPASSWORD`: Database password (if required)
-- `PGDATABASE`: Database name (default: materialize)
-- `MCP_LOG_LEVEL`: Logging level (DEBUG, INFO, WARNING, ERROR)
+See "All Configuration Options" section above for the complete list of configuration options.
+
+#### Using MCP Tools in Cursor
+
+Once configured, you can interact with Materialize through Cursor's AI chat:
+
+**Example interactions:**
+
+```
+You: "List all clusters in my Materialize instance"
+Cursor: [Uses list_clusters tool and displays results]
+
+You: "Create a new cluster called analytics with size 100cc"
+Cursor: [Uses create_cluster tool]
+
+You: "Show me all materialized views in the public schema"
+Cursor: [Uses list_materialized_views tool]
+
+You: "Check if any views are lagging by more than 5 seconds"
+Cursor: [Uses monitor_data_freshness tool]
+
+You: "How do I create a source from PostgreSQL?"
+Cursor: [Uses search_documentation tool to find relevant docs]
+```
+
+**Tool approval:**
+- Cursor may ask you to approve tool usage the first time
+- You can choose to always allow specific tools or approve each use
+
+#### Troubleshooting for Cursor
+
+**MCP Server Fails to Start in Cursor:**
+
+1. **Check the configuration file path**:
+   - Project: `.cursor/mcp.json` in your project root
+   - Global: `~/.cursor/mcp.json` in your home directory
+   - Verify the file is valid JSON (no trailing commas!)
+
+2. **Verify the Python path**:
+   ```bash
+   # Test the path works
+   /absolute/path/to/.venv/bin/python -m mcp_materialize_developers --help
+   ```
+
+3. **Check Cursor's MCP logs**:
+   - Open Cursor's output panel
+   - Look for "MCP" in the output channels
+   - Check for error messages about server startup
+
+4. **Test startup manually**:
+   ```bash
+   cd materialize-mcp-server/developers
+   echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | \
+     MCP_LOG_LEVEL=ERROR MCP_ENABLE_JSON_LOG=false \
+     .venv/bin/python -m mcp_materialize_developers 2>&1 | head -1
+   ```
+   You should see a JSON response with `"serverInfo"`.
+
+**Tools not appearing in Cursor:**
+
+1. **Restart Cursor completely** - Don't just reload, fully quit and reopen
+2. **Check configuration syntax** - Ensure JSON is valid (use a JSON validator)
+3. **Verify AWS credentials** - If only documentation search fails:
+   ```bash
+   aws sts get-caller-identity --profile your-profile-name
+   ```
+
+**Materialize Connection Issues:**
+
+See the "Materialize Connection Issues" section in the Troubleshooting section above - the same steps apply for Cursor.
+
+**Documentation Search Issues:**
+
+See the "Documentation Search Issues" section in the Troubleshooting section above - the same steps apply for Cursor.
 
 ### Manual Installation (for development)
 
@@ -78,6 +422,10 @@ uv run materialize-mcp-server
 ## Available Tools
 
 The server provides the following tools:
+
+### Connection & Health
+- **check_connection**: Check the connection status to Materialize database. Returns connection state, health status, and error information if the connection failed. This tool works even if Materialize is unavailable and helps diagnose connection issues.
+- **search_documentation**: Search Materialize documentation using semantic search. This tool works without a Materialize connection and can help answer questions about Materialize features and syntax.
 
 ### Database Object Management
 - **list_objects**: List all queryable objects in the Materialize database including sources, tables, views, materialized views, and indexed views
@@ -249,9 +597,85 @@ uv run materialize-mcp
 }
 ```
 
-## Using with Claude Code
+## Using with Claude Code and Cursor
 
-Once configured, Claude Code will automatically start the Materialize MCP server when you open your project. The tools will be available for Claude to use when helping you with Materialize-related tasks.
+Once configured, your IDE (Claude Code or Cursor) will automatically start the Materialize MCP server when you open your project. The tools will be available for the AI assistant to use when helping you with Materialize-related tasks.
+
+### Troubleshooting
+
+**MCP Server Fails to Start:**
+1. **Run `uv sync` first** - This is the most common issue. The server needs dependencies pre-installed.
+   ```bash
+   cd materialize-mcp-server/developers
+   uv sync
+   ```
+
+2. **Check startup time** - The server should start in ~0.5 seconds. If it takes longer:
+   ```bash
+   # Test startup manually
+   cd materialize-mcp-server/developers
+   echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | \
+     MCP_LOG_LEVEL=ERROR MCP_ENABLE_JSON_LOG=false \
+     .venv/bin/python -m mcp_materialize_developers 2>&1 | head -1
+   ```
+   You should see a JSON response with `"serverInfo"`.
+
+3. **Verify environment variables** - Make sure `MCP_LOG_LEVEL=ERROR` and `MCP_ENABLE_JSON_LOG=false` are set in your configuration to prevent log messages from interfering with the MCP protocol.
+
+**Materialize Connection Issues:**
+
+The MCP server can run even if Materialize is not available. The `check_connection` and `search_documentation` tools will always work, while database tools will fail with clear error messages if Materialize is not reachable.
+
+1. **Use the `check_connection` tool** - In Claude Code, ask Claude to check the connection:
+   ```
+   You: "Check the Materialize connection status"
+   Claude will use the check_connection tool and report the connection state
+   ```
+
+2. **Check Materialize is running** - If using a local instance:
+   ```bash
+   psql "postgresql://materialize@localhost:6875/materialize" -c "SELECT 1;"
+   ```
+
+3. **Verify connection string** - Check that `MZ_DSN` in your config points to the correct Materialize instance.
+
+4. **Check logs** - If connection fails, the server will log a warning on startup but continue running. Documentation search and connection checking tools will still work.
+
+**Documentation Search Issues:**
+
+Documentation search requires valid AWS credentials. If searches aren't working:
+
+1. **Verify AWS credentials**:
+   ```bash
+   # Check if your profile is configured
+   aws sts get-caller-identity --profile your-profile-name
+
+   # Should return your AWS account info
+   ```
+
+2. **Check AWS_PROFILE is set** - Make sure `AWS_PROFILE` is set in your MCP server configuration (in `~/.claude.json`)
+
+3. **Verify S3 access**:
+   ```bash
+   # Check if you can access S3
+   aws s3 ls --profile your-profile-name
+   ```
+
+4. **Check S3 bucket permissions** - Your AWS credentials need:
+   - `s3:CreateBucket` (for first-time setup)
+   - `s3:PutObject`, `s3:GetObject`, `s3:ListBucket` (for document storage/retrieval)
+
+5. **First search takes longer** - The first documentation search will take 2-3 seconds to:
+   - Load the ML model (sentence-transformers)
+   - Create the S3 bucket if it doesn't exist
+   - Index documentation if not already indexed
+
+   Subsequent searches are fast (~100-500ms).
+
+**Slow Performance:**
+- Server startup should be ~0.5s (or ~0.8s with `uv run`)
+- If slower, make sure you ran `uv sync` to pre-install dependencies
+- Use the venv path directly instead of `uv run` for fastest startup
 
 ### Example Interactions
 

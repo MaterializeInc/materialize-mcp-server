@@ -18,9 +18,9 @@ def test_config_validation():
         text=True,
     )
     assert result.returncode != 0, "Should fail with invalid port"
-    assert (
-        "must be between 1 and 65535" in result.stderr
-    ), f"Expected port validation error, got: {result.stderr}"
+    assert "must be between 1 and 65535" in result.stderr, (
+        f"Expected port validation error, got: {result.stderr}"
+    )
 
     # Test invalid DSN
     result = subprocess.run(
@@ -29,9 +29,9 @@ def test_config_validation():
         text=True,
     )
     assert result.returncode != 0, "Should fail with invalid DSN"
-    assert (
-        "DSN must include a scheme" in result.stderr
-    ), f"Expected DSN validation error, got: {result.stderr}"
+    assert "DSN must include a scheme" in result.stderr, (
+        f"Expected DSN validation error, got: {result.stderr}"
+    )
 
     print("✅ Configuration validation tests passed")
 
@@ -51,9 +51,9 @@ def test_help_output():
     help_text = result.stdout
     assert "--enable-json-logging" in help_text, "Should include JSON logging option"
     assert "--service-name" in help_text, "Should include service name option"
-    assert (
-        "Environment Variables:" in help_text
-    ), "Should include environment variables section"
+    assert "Environment Variables:" in help_text, (
+        "Should include environment variables section"
+    )
 
     print("✅ Enhanced help output test passed")
 
@@ -63,10 +63,11 @@ def test_validation_imports():
     print("Testing module imports...")
 
     try:
-        from materialize_mcp_server.validation import InputValidator, ValidationError
-        from materialize_mcp_server.logging_config import setup_structured_logging
-        from materialize_mcp_server.observability import MetricsCollector
-        from materialize_mcp_server.config import ConfigurationError
+        # Test that Phase 1 modules can be imported
+        __import__("materialize_mcp_server.validation")
+        __import__("materialize_mcp_server.logging_config")
+        __import__("materialize_mcp_server.observability")
+        __import__("materialize_mcp_server.config")
 
         print("✅ All Phase 1 modules import successfully")
     except ImportError as e:
@@ -102,8 +103,8 @@ def test_logging_config():
     print("Testing logging configuration...")
 
     from materialize_mcp_server.logging_config import (
-        setup_structured_logging,
         generate_correlation_id,
+        setup_structured_logging,
     )
 
     # Test logger setup
@@ -134,9 +135,9 @@ def test_observability():
 
     # Test metrics collector
     collector = get_metrics_collector()
-    assert isinstance(
-        collector, MetricsCollector
-    ), "Should return MetricsCollector instance"
+    assert isinstance(collector, MetricsCollector), (
+        "Should return MetricsCollector instance"
+    )
 
     # Test metrics recording (async would require more setup)
     summary = collector.get_metrics_summary()

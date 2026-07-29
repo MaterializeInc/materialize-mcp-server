@@ -26,8 +26,14 @@ jobs:
       - name: Set up Python
         run: uv python install
 
-      - name: Install project dependencies
+      - name: Install developers dependencies
+        working-directory: ./developers
+        run: uv sync --locked --all-extras --dev
+
+      - name: Install agents dependencies
+        working-directory: ./agents
         run: uv sync --locked --all-extras --dev
 
       - name: Run integration tests
+        working-directory: ./developers
         run: uv run pytest tests/integration/

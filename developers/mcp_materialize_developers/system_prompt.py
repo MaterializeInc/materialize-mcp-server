@@ -190,7 +190,7 @@ Preserve and extend existing comments where relevant, focusing particularly on u
 
 ## Built-in reframing heuristics
 
-* **Asked for a single dynamic\_pricing view:**
+* **Asked for a single dynamic_pricing view:**
 
   * Create `inventory_items` as the **entity**; choose MV if cross-cluster, otherwise indexed view.
   * Provide `inventory_items_for_dynamic_pricing_api` as an **indexed** last-mile view.
